@@ -1,84 +1,111 @@
-import { useEffect, useState } from "react"
-import Card from "./Card"
-import { makeDeck } from "./makeDeck"
+import { useState, type MouseEvent } from "react"
+import { OMDB_API_KEY } from "./api_key"
 
-export type Card = {
-  suit: string,
-  number: string,
-  id: number
+// Janky little solution because we're not using a backend
+let nextId = 1
+
+// Let the computer know what our objects will look like
+// This isn't itself an object, it's the blueprint of an object
+// Documentation
+type Movie = {
+	id: number
+	title: string
+	numberOfStars: number
+	review: string
+	imgSrc: string
+}
+
+// A lil function to get the poster that matches a title
+const getMoviePosterURL = async (title: string) => {
+	const response = await fetch(`http://www.omdbapi.com/?apikey=${OMDB_API_KEY}&t=${title}`)
+	const data = await response.json()
+	return data.Poster
 }
 
 export default function App() {
-  const [deck, setDeck] = useState<Card[]>([])
-  const [myHand, setMyHand] = useState<Card[]>([])
+	// Form state
+	const [titleValue, setTitleValue] = useState("")
+	const [reviewValue, setReviewValue] = useState("")
+	const [starsValue, setStarsValue] = useState("1")
 
-  const dealCard = async () => {
-    // If there are no cards in the deck, leave the function
-    if (deck.length === 0) {
-      return
-    }
-    const cardToDeal = deck.at(-1)!
+	// Movies
+	const [movieList, setMovieList] = useState<Movie[]>([])
 
-    // Add to Hand on Back End
-    await fetch("http://localhost:3000/myCards", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(cardToDeal)
-    })
+	const addMovie = async (event: MouseEvent<HTMLButtonElement>) => {
+		event.preventDefault() // prevent the page from refreshing
 
-    // Add to Hand on Front End
-    setMyHand([...myHand, cardToDeal])
+		const posterURL = await getMoviePosterURL(titleValue)
 
-    // Remove from Deck on Back End
-    fetch("http://localhost:3000/deck/" + cardToDeal.id, {
-      method: "DELETE"
-    })
+		const newMovie = {
+			id: nextId++, // lil trick to increment the id for next movie added
+			title: titleValue,
+			numberOfStars: parseInt(starsValue), // select gives a string, but I want a number
+			review: reviewValue,
+			imgSrc: posterURL
+		}
 
-    // Remove From Deck on Front End
-    setDeck(deck.slice(0, -1))
-  }
+		// Add newMovie to our array in state
+		//setSomeArray([...someArray, newItem ])
+		setMovieList([...movieList, newMovie])
 
-  const loadData = async () => {
-    // Load deck from server
-    const deckResponse = await fetch("http://localhost:3000/deck")
-    const deckData = await deckResponse.json()
-    setDeck(deckData)
+		// Clear the form
+		setTitleValue("")
+		setReviewValue("")
+		setStarsValue("1")
+	}
 
-    // Load hand from server
-    const myResponse = await fetch("http://localhost:3000/myCards")
-    const myData = await myResponse.json()
-    setMyHand(myData)
-  }
-
-  // This will run once (ish) when the page first loads in
-  useEffect(() => {
-    loadData()
-  }, []) // <-- Have to put empty array right here
-
-  const reset = async () => {
-    setDeck(makeDeck())
-    setMyHand([])
-    // TODO
-  }
-
-  return (
-    <div className="m-4">
-      <button onClick={reset} className="bg-slate-700 text-white p-4">Reset</button>
-      <div className="bg-green-800 rounded-xl flex justify-center items-center text-white text-3xl w-50 h-70">
-        <div className="text-center">
-          <div className="mb-3">{deck.length}</div>
-          <button onClick={dealCard} className="bg-green-950 text-xl mb-4 text-white p-4 rounded-lg">Deal Card</button>
-        </div>
-      </div>
-      <div className="flex mt-4">
-        {myHand.map(c => (
-          <div key={c.number + c.suit} className="-me-20">
-            <Card card={c} />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+	return (
+		<div className="m-4">
+			<h2 className="text-4xl font-medium mb-5">Movie Reviews</h2>
+			<form>
+				<div className="mb-3">
+					<label htmlFor="title-input" className="block">Title</label>
+					<input
+						onChange={(event) => setTitleValue(event.target.value)}
+						value={titleValue}
+						id="title-input"
+						type="text"
+						className="border border-gray-400 rounded-lg p-2 w-100"
+					/>
+				</div>
+				<div className="mb-3">
+					<label htmlFor="stars-input" className="block">Number of Stars</label>
+					<select
+						onChange={(event) => setStarsValue(event.target.value)}
+						value={starsValue}
+						id="stars-input"
+						className="border border-gray-400 rounded-lg p-2 w-100"
+					>
+						<option value="1">⭐</option>
+						<option value="2">⭐⭐</option>
+						<option value="3">⭐⭐⭐</option>
+						<option value="4">⭐⭐⭐⭐</option>
+						<option value="5">⭐⭐⭐⭐⭐</option>
+					</select>
+				</div>
+				<div className="mb-3">
+					<label htmlFor="review-input" className="block">Review</label>
+					<textarea
+						onChange={(event) => setReviewValue(event.target.value)}
+						value={reviewValue}
+						id="review-input"
+						className="border border-gray-400 rounded-lg p-2 w-100 h-20"
+					></textarea>
+				</div>
+				<button onClick={addMovie} className="mb-3 bg-blue-900 text-white shadow p-4 rounded-lg">Submit</button>
+			</form>
+			<div>
+				{movieList.map(movie => (
+					<div key={movie.id} className="flex gap-3 mb-4 border rounded-lg border-gray-300 p-4 bg-gray-200">
+						<img className="w-50" src={movie.imgSrc} />
+						<div>
+							<h4 className="text-2xl font-bold">{movie.title}</h4>
+							<p className="my-3">{Array(movie.numberOfStars).fill("⭐")}</p>
+							<p className="ms-1">{movie.review}</p>
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	)
 }

@@ -1,4 +1,4 @@
-import type { Card } from "./App"
+import type { Card } from "./CardGame"
 
 type Props = {
     card: Card
